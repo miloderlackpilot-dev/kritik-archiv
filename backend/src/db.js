@@ -56,16 +56,27 @@ db.exec(`
     relation_type TEXT NOT NULL DEFAULT 'reference',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS media (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    stored_name TEXT NOT NULL UNIQUE,
+    original_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    license TEXT NOT NULL,
+    attribution TEXT NOT NULL,
+    source_url TEXT NOT NULL DEFAULT '',
+    uploaded_by INTEGER NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
-// Backwards-compatible migration for databases created before claim metadata existed.
 const postColumns = db.prepare('PRAGMA table_info(posts)').all().map((column) => column.name);
 if (!postColumns.includes('claim_type')) db.exec("ALTER TABLE posts ADD COLUMN claim_type TEXT NOT NULL DEFAULT 'research'");
 if (!postColumns.includes('event_date')) db.exec('ALTER TABLE posts ADD COLUMN event_date TEXT');
 
 function seed() {
-  const count = db.prepare('SELECT COUNT(*) AS count FROM folders').get().count;
-  if (!count) {
+  if (!db.prepare('SELECT COUNT(*) AS count FROM folders').get().count) {
     const insert = db.prepare('INSERT INTO folders (name, description, parent_id) VALUES (?, ?, ?)');
     const politik = insert.run('Politik', 'Politische Ereignisse', null).lastInsertRowid;
     insert.run('Aussagen', 'Aussagen und Zitate', politik);
