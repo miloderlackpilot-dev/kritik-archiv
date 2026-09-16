@@ -30,6 +30,8 @@ db.exec(`
     content TEXT NOT NULL,
     folder_id INTEGER NOT NULL REFERENCES folders(id),
     tags TEXT NOT NULL DEFAULT '[]',
+    claim_type TEXT NOT NULL DEFAULT 'research',
+    event_date TEXT,
     author_id INTEGER NOT NULL REFERENCES users(id),
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
     moderation_note TEXT NOT NULL DEFAULT '',
@@ -55,6 +57,11 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+// Backwards-compatible migration for databases created before claim metadata existed.
+const postColumns = db.prepare('PRAGMA table_info(posts)').all().map((column) => column.name);
+if (!postColumns.includes('claim_type')) db.exec("ALTER TABLE posts ADD COLUMN claim_type TEXT NOT NULL DEFAULT 'research'");
+if (!postColumns.includes('event_date')) db.exec('ALTER TABLE posts ADD COLUMN event_date TEXT');
 
 function seed() {
   const count = db.prepare('SELECT COUNT(*) AS count FROM folders').get().count;
