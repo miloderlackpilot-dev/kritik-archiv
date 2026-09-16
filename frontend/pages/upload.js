@@ -1,0 +1,13 @@
+import { useState } from 'react';
+import { useRouter } from 'next/router';
+import Link from 'next/link';
+import axios from 'axios';
+
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+export default function UploadPage() {
+  const router = useRouter();
+  const [form, setForm] = useState({ postId: '', license: '', attribution: '', sourceUrl: '' });
+  const [file, setFile] = useState(null); const [message, setMessage] = useState(''); const [error, setError] = useState('');
+  const submit = async (e) => { e.preventDefault(); setError(''); setMessage(''); if (!file) return setError('Bitte Datei auswählen'); const data = new FormData(); Object.entries(form).forEach(([k, v]) => data.append(k, v)); data.append('file', file); try { await axios.post(`${API}/api/media`, data, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }); setMessage('Datei gespeichert. Sie wird erst nach Freigabe des Beitrags öffentlich.'); } catch (err) { setError(err.response?.data?.error || 'Upload fehlgeschlagen'); } };
+  return <main className="container" style={{ maxWidth: 700 }}><p><Link href="/dashboard">← Dashboard</Link></p><div className="card"><h1>Datei hinzufügen</h1><p className="small">Erlaubt: JPG, PNG, WebP oder PDF, maximal 10 MB. Nur eigene, gemeinfreie oder passend lizenzierte Dateien verwenden.</p>{error && <div className="alert error">{error}</div>}{message && <div className="alert success">{message}</div>}<form onSubmit={submit}><label>Beitrags-ID<input className="input" required type="number" min="1" value={form.postId} onChange={(e) => setForm({ ...form, postId: e.target.value })} /></label><label style={{ display: 'block', marginTop: 12 }}>Datei<input className="input" required type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setFile(e.target.files[0])} /></label><label style={{ display: 'block', marginTop: 12 }}>Lizenz/Rechtsstatus<input className="input" required placeholder="z. B. CC BY 4.0, CC0, eigene Datei" value={form.license} onChange={(e) => setForm({ ...form, license: e.target.value })} /></label><label style={{ display: 'block', marginTop: 12 }}>Urheber/Namensnennung<input className="input" required value={form.attribution} onChange={(e) => setForm({ ...form, attribution: e.target.value })} /></label><label style={{ display: 'block', marginTop: 12 }}>Originalquelle (optional)<input className="input" type="url" value={form.sourceUrl} onChange={(e) => setForm({ ...form, sourceUrl: e.target.value })} /></label><button className="button" style={{ marginTop: 16 }}>Hochladen</button></form></div></main>;
+}
