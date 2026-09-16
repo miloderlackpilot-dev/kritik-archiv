@@ -4,10 +4,15 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { db, seed } = require('./db');
+const mediaRouter = require('./media');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'development-only-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET === 'development-only-secret' || JWT_SECRET === 'replace-this-with-a-long-random-secret') {
+  if (process.env.NODE_ENV === 'production') throw new Error('JWT_SECRET muss in Produktion gesetzt werden');
+  console.warn('WARNUNG: Für Produktion einen langen eigenen JWT_SECRET setzen.');
+}
 seed();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -26,9 +31,7 @@ const postWithSources = (p) => ({ ...p, tags: JSON.parse(p.tags), sources: db.pr
 function bootstrapAdmin() {
   const { ADMIN_EMAIL, ADMIN_USERNAME, ADMIN_PASSWORD } = process.env;
   if (!ADMIN_EMAIL || !ADMIN_USERNAME || !ADMIN_PASSWORD || ADMIN_PASSWORD.startsWith('change-this')) return;
-  if (!db.prepare('SELECT id FROM users WHERE email=?').get(ADMIN_EMAIL)) {
-    db.prepare(`INSERT INTO users (email, username, password_hash, role, verified) VALUES (?, ?, ?, 'admin', 1)`).run(ADMIN_EMAIL, ADMIN_USERNAME, bcrypt.hashSync(ADMIN_PASSWORD, 12));
-  }
+  if (!db.prepare('SELECT id FROM users WHERE email=?').get(ADMIN_EMAIL)) db.prepare(`INSERT INTO users (email, username, password_hash, role, verified) VALUES (?, ?, ?, 'admin', 1)`).run(ADMIN_EMAIL, ADMIN_USERNAME, bcrypt.hashSync(ADMIN_PASSWORD, 12));
 }
 bootstrapAdmin();
 
@@ -63,10 +66,7 @@ app.get('/api/posts', (req, res) => {
   const rows = db.prepare(`SELECT p.*, u.username AS author_name, f.name AS folder_name FROM posts p JOIN users u ON u.id=p.author_id JOIN folders f ON f.id=p.folder_id WHERE p.status='approved' ORDER BY COALESCE(p.event_date,p.created_at) DESC`).all();
   res.json(rows.map(postWithSources));
 });
-app.get('/api/posts/:id', (req, res) => {
-  const p = db.prepare(`SELECT p.*, u.username AS author_name, f.name AS folder_name FROM posts p JOIN users u ON u.id=p.author_id JOIN folders f ON f.id=p.folder_id WHERE p.id=? AND p.status='approved'`).get(req.params.id);
-  p ? res.json(postWithSources(p)) : res.status(404).json({ error: 'Beitrag nicht gefunden' });
-});
+app.get('/api/posts/:id', (req, res) => { const p = db.prepare(`SELECT p.*, u.username AS author_name, f.name AS folder_name FROM posts p JOIN users u ON u.id=p.author_id JOIN folders f ON f.id=p.folder_id WHERE p.id=? AND p.status='approved'`).get(req.params.id); p ? res.json(postWithSources(p)) : res.status(404).json({ error: 'Beitrag nicht gefunden' }); });
 app.post('/api/posts', auth, (req, res) => {
   const { title, content, folderId, tags = [], sourceIds = [], claimType = 'research', eventDate = null } = req.body;
   if (!title?.trim() || !content?.trim() || !folderId) return res.status(400).json({ error: 'Titel, Inhalt und Ordner erforderlich' });
@@ -81,10 +81,14 @@ app.post('/api/posts', auth, (req, res) => {
   res.status(201).json({ message: 'Beitrag mit Quellen zur Moderation eingereicht', id: create() });
 });
 
+// Uploads sind nach erfolgreicher JWT-Prüfung geschützt.
+app.use('/api/media', auth, mediaRouter);
+
 app.get('/api/admin/users', auth, role('admin'), (req, res) => res.json(db.prepare('SELECT id,email,username,role,verified,created_at FROM users ORDER BY created_at DESC').all().map(publicUser)));
 app.patch('/api/admin/users/:id/verify', auth, role('admin'), (req, res) => { const r = db.prepare('UPDATE users SET verified=1 WHERE id=?').run(req.params.id); r.changes ? res.json({ message: 'Benutzer verifiziert' }) : res.status(404).json({ error: 'Benutzer nicht gefunden' }); });
 app.patch('/api/admin/users/:id/role', auth, role('admin'), (req, res) => { if (!['user', 'moderator', 'admin'].includes(req.body.role)) return res.status(400).json({ error: 'Ungültige Rolle' }); const r = db.prepare('UPDATE users SET role=? WHERE id=?').run(req.body.role, req.params.id); r.changes ? res.json({ message: 'Rolle aktualisiert' }) : res.status(404).json({ error: 'Benutzer nicht gefunden' }); });
 app.get('/api/admin/posts/pending', auth, role('admin', 'moderator'), (req, res) => res.json(db.prepare(`SELECT p.*,u.username AS author_name,f.name AS folder_name FROM posts p JOIN users u ON u.id=p.author_id JOIN folders f ON f.id=p.folder_id WHERE p.status='pending' ORDER BY p.created_at`).all().map(postWithSources)));
 app.patch('/api/admin/posts/:id/status', auth, role('admin', 'moderator'), (req, res) => { if (!['approved', 'rejected'].includes(req.body.status)) return res.status(400).json({ error: 'Status ungültig' }); const r = db.prepare('UPDATE posts SET status=?,moderation_note=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(req.body.status, req.body.note || '', req.params.id); r.changes ? res.json({ message: 'Status aktualisiert' }) : res.status(404).json({ error: 'Beitrag nicht gefunden' }); });
 
+app.use((err, req, res, next) => { console.error(err); res.status(500).json({ error: 'Interner Serverfehler' }); });
 app.listen(PORT, () => console.log(`Backend läuft auf http://localhost:${PORT}`));
