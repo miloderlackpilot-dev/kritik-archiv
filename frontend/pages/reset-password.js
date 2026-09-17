@@ -1,0 +1,6 @@
+import { useState } from 'react';
+import { useRouter } from 'next/router';
+import Link from 'next/link';
+import axios from 'axios';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+export default function ResetPassword(){const router=useRouter();const [password,setPassword]=useState('');const [message,setMessage]=useState('');const [error,setError]=useState('');async function submit(e){e.preventDefault();setError('');setMessage('');try{const r=await axios.post(`${API}/api/auth/reset-password`,{token:router.query.token,password});setMessage(r.data.message);}catch(err){setError(err.response?.data?.error||'Passwort konnte nicht geändert werden');}}return <div className="container" style={{maxWidth:520}}><p><Link href="/login">← Zur Anmeldung</Link></p><div className="card"><h1>Neues Passwort</h1>{error&&<div className="alert error">{error}</div>}{message&&<div className="alert success">{message}</div>}<form onSubmit={submit}><label>Neues Passwort<input className="input" type="password" minLength={8} required value={password} onChange={e=>setPassword(e.target.value)}/></label><button className="button" style={{marginTop:16}} type="submit">Passwort speichern</button></form></div></div>;}
