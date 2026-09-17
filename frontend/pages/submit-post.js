@@ -2,77 +2,22 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import axios from 'axios';
-
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-
+const empty = { title: '', content: '', folderId: '', claimType: 'research', eventDate: '', tags: '', sourceIds: [], topicIds: [], personIds: [], organizationIds: [] };
 export default function SubmitPostPage() {
-  const router = useRouter();
-  const [folders, setFolders] = useState([]);
-  const [sources, setSources] = useState([]);
-  const [form, setForm] = useState({ title: '', content: '', folderId: '', claimType: 'research', eventDate: '', tags: '', sourceIds: [] });
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return router.push('/login');
-    const headers = { Authorization: `Bearer ${token}` };
-    Promise.all([
-      axios.get(`${API}/api/folders`),
-      axios.get(`${API}/api/sources`, { headers })
-    ]).then(([folderResponse, sourceResponse]) => {
-      setFolders(folderResponse.data);
-      setSources(sourceResponse.data);
-    }).catch((err) => setError(err.response?.data?.error || 'Daten konnten nicht geladen werden'));
-  }, [router]);
-
-  const toggleSource = (id) => setForm((current) => ({
-    ...current,
-    sourceIds: current.sourceIds.includes(id)
-      ? current.sourceIds.filter((sourceId) => sourceId !== id)
-      : [...current.sourceIds, id]
-  }));
-
-  const submit = async (event) => {
-    event.preventDefault();
-    setError('');
-    setMessage('');
-    const token = localStorage.getItem('token');
-    try {
-      await axios.post(`${API}/api/posts`, {
-        ...form,
-        tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean)
-      }, { headers: { Authorization: `Bearer ${token}` } });
-      setMessage('Beitrag eingereicht. Er wird vor der Veröffentlichung moderiert.');
-      setForm({ title: '', content: '', folderId: '', claimType: 'research', eventDate: '', tags: '', sourceIds: [] });
-    } catch (err) {
-      setError(err.response?.data?.error || 'Beitrag konnte nicht eingereicht werden');
-    }
-  };
-
-  return <div className="container" style={{ maxWidth: 800 }}>
-    <p><Link href="/dashboard">← Zum Dashboard</Link></p>
-    <div className="card">
-      <h1>Beitrag einreichen</h1>
-      <p className="small">Bitte trenne belegte Fakten, Zitate und eigene Einordnung klar voneinander.</p>
-      {error && <div className="alert error">{error}</div>}
-      {message && <div className="alert success">{message}</div>}
-      <form onSubmit={submit}>
-        <label>Titel<input className="input" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
-        <label style={{ display: 'block', marginTop: 14 }}>Inhalt<textarea className="textarea" required rows={10} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} /></label>
-        <label style={{ display: 'block', marginTop: 14 }}>Einordnung<select className="select" value={form.claimType} onChange={(e) => setForm({ ...form, claimType: e.target.value })}>
-          <option value="fact">Belegte Tatsache</option><option value="quote">Wörtliches Zitat</option><option value="summary">Zusammenfassung</option><option value="opinion">Meinung/Einordnung</option><option value="research">Recherche</option><option value="unverified">Ungeprüfte Behauptung</option>
-        </select></label>
-        <label style={{ display: 'block', marginTop: 14 }}>Archivordner<select className="select" required value={form.folderId} onChange={(e) => setForm({ ...form, folderId: e.target.value })}>
-          <option value="">Bitte auswählen</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
-        </select></label>
-        <label style={{ display: 'block', marginTop: 14 }}>Ereignisdatum<input className="input" type="date" value={form.eventDate} onChange={(e) => setForm({ ...form, eventDate: e.target.value })} /></label>
-        <label style={{ display: 'block', marginTop: 14 }}>Tags <span className="small">(durch Komma trennen)</span><input className="input" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} /></label>
-        <fieldset style={{ marginTop: 18 }}><legend>Quellen auswählen (mindestens eine)</legend>
-          {sources.length === 0 ? <p className="small">Noch keine Quellen vorhanden. Lege zuerst eine <Link href="/sources">Quelle</Link> an.</p> : sources.map((source) => <label key={source.id} style={{ display: 'block', marginTop: 8 }}><input type="checkbox" checked={form.sourceIds.includes(source.id)} onChange={() => toggleSource(source.id)} />{' '} {source.title || source.url} <span className="small">({source.license})</span></label>)}
-        </fieldset>
-        <button className="button" style={{ marginTop: 20 }} type="submit">Zur Moderation einreichen</button>
-      </form>
-    </div>
-  </div>;
+  const router = useRouter(); const [folders,setFolders]=useState([]); const [sources,setSources]=useState([]); const [topics,setTopics]=useState([]); const [persons,setPersons]=useState([]); const [organizations,setOrganizations]=useState([]); const [form,setForm]=useState(empty); const [message,setMessage]=useState(''); const [error,setError]=useState('');
+  useEffect(()=>{const token=localStorage.getItem('token');if(!token)return router.push('/login');const headers={Authorization:`Bearer ${token}`};Promise.all([axios.get(`${API}/api/folders`),axios.get(`${API}/api/sources`,{headers}),axios.get(`${API}/api/archive/topics`),axios.get(`${API}/api/archive/persons`),axios.get(`${API}/api/archive/organizations`)]).then(([f,s,t,p,o])=>{setFolders(f.data);setSources(s.data);setTopics(t.data);setPersons(p.data);setOrganizations(o.data);}).catch(e=>setError(e.response?.data?.error||'Daten konnten nicht geladen werden'));},[router]);
+  const toggle=(key,id)=>setForm(c=>({...c,[key]:c[key].includes(id)?c[key].filter(x=>x!==id):[...c[key],id]}));
+  const submit=async(e)=>{e.preventDefault();setError('');setMessage('');try{await axios.post(`${API}/api/posts`,{...form,tags:form.tags.split(',').map(x=>x.trim()).filter(Boolean)},{headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}});setMessage('Beitrag eingereicht. Er wird vor der Veröffentlichung moderiert.');setForm(empty);}catch(e){setError(e.response?.data?.error||'Beitrag konnte nicht eingereicht werden');}};
+  const checks=(title,key,items,label)=><fieldset style={{marginTop:18}}><legend>{title}</legend>{!items.length?<p className="small">Keine Einträge vorhanden.</p>:items.map(item=><label key={item.id} style={{display:'block',marginTop:8}}><input type="checkbox" checked={form[key].includes(item.id)} onChange={()=>toggle(key,item.id)}/> {item.name}{item.description&&<span className="small"> · {item.description}</span>}</label>)}</fieldset>;
+  return <div className="container" style={{maxWidth:800}}><p><Link href="/dashboard">← Zum Dashboard</Link></p><div className="card"><h1>Beitrag einreichen</h1><p className="small">Bitte trenne belegte Fakten, Zitate und eigene Einordnung klar voneinander.</p>{error&&<div className="alert error">{error}</div>}{message&&<div className="alert success">{message}</div>}<form onSubmit={submit}>
+    <label>Titel<input className="input" required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/></label>
+    <label style={{display:'block',marginTop:14}}>Inhalt<textarea className="textarea" required rows={10} value={form.content} onChange={e=>setForm({...form,content:e.target.value})}/></label>
+    <label style={{display:'block',marginTop:14}}>Einordnung<select className="select" value={form.claimType} onChange={e=>setForm({...form,claimType:e.target.value})}><option value="fact">Belegte Tatsache</option><option value="quote">Wörtliches Zitat</option><option value="summary">Zusammenfassung</option><option value="opinion">Meinung/Einordnung</option><option value="research">Recherche</option><option value="unverified">Ungeprüfte Behauptung</option></select></label>
+    <label style={{display:'block',marginTop:14}}>Archivordner<select className="select" required value={form.folderId} onChange={e=>setForm({...form,folderId:e.target.value})}><option value="">Bitte auswählen</option>{folders.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
+    <label style={{display:'block',marginTop:14}}>Ereignisdatum<input className="input" type="date" value={form.eventDate} onChange={e=>setForm({...form,eventDate:e.target.value})}/></label>
+    <label style={{display:'block',marginTop:14}}>Tags <span className="small">(durch Komma trennen)</span><input className="input" value={form.tags} onChange={e=>setForm({...form,tags:e.target.value})}/></label>
+    {checks('Themen','topicIds',topics)}{checks('Personen','personIds',persons)}{checks('Organisationen','organizationIds',organizations)}
+    <fieldset style={{marginTop:18}}><legend>Quellen auswählen (mindestens eine)</legend>{sources.length===0?<p className="small">Noch keine Quellen vorhanden. Lege zuerst eine <Link href="/sources">Quelle</Link> an.</p>:sources.map(s=><label key={s.id} style={{display:'block',marginTop:8}}><input type="checkbox" checked={form.sourceIds.includes(s.id)} onChange={()=>toggle('sourceIds',s.id)}/> {s.title||s.url} <span className="small">({s.license})</span></label>)}</fieldset>
+    <button className="button" style={{marginTop:20}} type="submit">Zur Moderation einreichen</button></form></div></div>;
 }
