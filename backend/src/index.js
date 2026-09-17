@@ -65,7 +65,7 @@ app.post('/api/sources', auth, (req, res) => {
   res.status(201).json(db.prepare('SELECT * FROM source_records WHERE id=?').get(r.lastInsertRowid));
 });
 
-app.use('/api/archive', archiveRouter({ auth, role, claimTypes }));
+app.use('/api/archive', (req, res, next) => { req.requireAuth = auth; req.requireRole = role; next(); }, archiveRouter);
 
 app.post('/api/posts', auth, (req, res) => {
   const { title, content, folderId, tags = [], sourceIds = [], claimType = 'research', eventDate = null } = req.body;
@@ -88,7 +88,16 @@ app.get('/api/admin/users', auth, role('admin'), (req, res) => res.json(db.prepa
 app.patch('/api/admin/users/:id/verify', auth, role('admin'), (req, res) => { const r = db.prepare('UPDATE users SET verified=1 WHERE id=?').run(req.params.id); r.changes ? res.json({ message: 'Benutzer verifiziert' }) : res.status(404).json({ error: 'Benutzer nicht gefunden' }); });
 app.patch('/api/admin/users/:id/role', auth, role('admin'), (req, res) => { if (!['user', 'moderator', 'admin'].includes(req.body.role)) return res.status(400).json({ error: 'Ungültige Rolle' }); const r = db.prepare('UPDATE users SET role=? WHERE id=?').run(req.body.role, req.params.id); r.changes ? res.json({ message: 'Rolle aktualisiert' }) : res.status(404).json({ error: 'Benutzer nicht gefunden' }); });
 app.get('/api/admin/posts/pending', auth, role('admin', 'moderator'), (req, res) => res.json(db.prepare(`SELECT p.*,u.username AS author_name,f.name AS folder_name FROM posts p JOIN users u ON u.id=p.author_id JOIN folders f ON f.id=p.folder_id WHERE p.status='pending' ORDER BY p.created_at`).all().map(postWithSources)));
-app.patch('/api/admin/posts/:id/status', auth, role('admin', 'moderator'), (req, res) => { if (!['approved', 'rejected'].includes(req.body.status)) return res.status(400).json({ error: 'Status ungültig' }); const r = db.prepare('UPDATE posts SET status=?,moderation_note=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(req.body.status, req.body.note || '', req.params.id); r.changes ? res.json({ message: 'Status aktualisiert' }) : res.status(404).json({ error: 'Beitrag nicht gefunden' }); });
+app.patch('/api/admin/posts/:id/status', auth, role('admin', 'moderator'), (req, res) => {
+  if (!['approved', 'rejected'].includes(req.body.status)) return res.status(400).json({ error: 'Status ungültig' });
+  const post = db.prepare('SELECT status FROM posts WHERE id=?').get(req.params.id);
+  if (!post) return res.status(404).json({ error: 'Beitrag nicht gefunden' });
+  db.transaction(() => {
+    db.prepare('UPDATE posts SET status=?,moderation_note=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(req.body.status, req.body.note || '', req.params.id);
+    db.prepare('INSERT INTO moderation_logs (post_id,moderator_id,old_status,new_status,note) VALUES (?,?,?,?,?)').run(req.params.id, req.user.id, post.status, req.body.status, req.body.note || '');
+  })();
+  res.json({ message: 'Status aktualisiert' });
+});
 
 app.use((err, req, res, next) => { console.error(err); res.status(500).json({ error: 'Interner Serverfehler' }); });
 app.listen(PORT, () => console.log(`Backend läuft auf http://localhost:${PORT}`));
