@@ -2,34 +2,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import axios from 'axios';
-
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 const statusLabels = { pending: 'Wartet auf Moderation', approved: 'Freigegeben', rejected: 'Abgelehnt' };
-
-export default function MyPostsPage() {
-  const router = useRouter();
-  const [posts, setPosts] = useState([]);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return router.push('/login');
-    axios.get(`${API}/api/archive/my-posts`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => setPosts(r.data)).catch((e) => setError(e.response?.data?.error || 'Beiträge konnten nicht geladen werden'));
-  }, [router]);
-  return <main className="container" style={{ maxWidth: 900 }}>
-    <p><Link href="/dashboard">← Dashboard</Link></p>
-    <h1>Meine Beiträge</h1>
-    {error && <div className="alert error">{error}</div>}
-    {!error && !posts.length && <p className="small">Du hast noch keine Beiträge eingereicht.</p>}
-    <div className="grid">{posts.map((post) => <article className="card" key={post.id}>
-      <h2>{post.title}</h2>
-      <p className="small">Status: <strong>{statusLabels[post.status] || post.status}</strong> · {post.folder_name} · {post.created_at}</p>
-      {post.moderation_note && <div className="alert" style={{ margin: '12px 0' }}><strong>Moderationsnotiz:</strong> {post.moderation_note}</div>}
-      <p>{post.content.slice(0, 300)}{post.content.length > 300 ? ' …' : ''}</p>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {(post.status === 'pending' || post.status === 'rejected') && <Link href={`/edit-post/${post.id}`}><button className="button" type="button">Bearbeiten</button></Link>}
-        {post.status === 'approved' && <Link href={`/posts/${post.id}`}><button className="button secondary" type="button">Öffnen</button></Link>}
-      </div>
-    </article>)}</div>
-  </main>;
-}
+export default function MyPostsPage() { const router=useRouter(); const [posts,setPosts]=useState([]); const [error,setError]=useState(''); useEffect(()=>{const token=localStorage.getItem('token');if(!token)return router.push('/login');axios.get(`${API}/api/archive/my-posts`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>setPosts(r.data)).catch(e=>setError(e.response?.data?.error||'Beiträge konnten nicht geladen werden'));},[router]); return <main className="container" style={{maxWidth:900}}><p><Link href="/dashboard">← Dashboard</Link></p><h1>Meine Beiträge</h1>{error&&<div className="alert error">{error}</div>}{!error&&!posts.length&&<p className="small">Du hast noch keine Beiträge eingereicht.</p>}<div className="grid">{posts.map(post=><article className="card" key={post.id}><h2>{post.title}</h2><p className="small">Status: <strong>{statusLabels[post.status]||post.status}</strong> · {post.folder_name} · {post.created_at}</p>{post.moderation_note&&<div className="alert" style={{margin:'12px 0'}}><strong>Moderationsnotiz:</strong> {post.moderation_note}</div>}<p>{post.content.slice(0,300)}{post.content.length>300?' …':''}</p><div style={{display:'flex',gap:10,flexWrap:'wrap'}}>{(post.status==='pending'||post.status==='rejected')&&<Link href={`/edit-post/${post.id}`}><button className="button" type="button">Bearbeiten</button></Link>}<Link href={`/post-versions?id=${post.id}`}><button className="button secondary" type="button">Versionshistorie</button></Link>{post.status==='approved'&&<Link href={`/posts/${post.id}`}><button className="button secondary" type="button">Öffnen</button></Link>}</div></article>)}</div></main>; }
